@@ -4,6 +4,7 @@ from __future__ import absolute_import
 
 from tablepyxl.style import Table
 from paddle.utils import try_import
+from openpyxl import load_workbook
 
 
 def string_to_int(s):
@@ -133,3 +134,60 @@ def insert_table_at_cell(table, cell):
     ws = cell.parent
     column, row = cell.column, cell.row
     insert_table(table, ws, column, row)
+
+
+def xl_to_html(excel_file):
+    wb = load_workbook(excel_file)
+    sheet_names = wb.sheetnames
+    html_content = "<html><body>"
+    for sheet_name in sheet_names:
+        sheet = wb[sheet_name]
+        html_content += f"<h2>{sheet_name}</h2>"
+        html_content += "<table border='1'>"
+        for row in sheet.iter_rows(values_only=True):
+            html_content += "<tr>"
+            for cell in row:
+                html_content += f"<td>{cell if cell is not None else ''}</td>"
+            html_content += "</tr>"
+
+        html_content += "</table><br>"
+
+    html_content += "</body></html>"
+    return html_content
+
+
+def convert_html_txt_to_dict(txt_file_path, dict_html):
+    try:
+        with open(txt_file_path, "r", encoding="utf-8") as file:
+            for line in file:
+                line = line.strip()
+                if not line:
+                    continue
+                parts = line.split("\t", 1)
+                if len(parts) == 2:
+                    filename = parts[0]
+                    html_content = parts[1]
+                    dict_html[filename] = html_content
+                else:
+                    print(f"警告：无法解析行: {line}")
+    except FileNotFoundError:
+        print(f"错误：找不到文件 {txt_file_path}")
+    except Exception as e:
+        print(f"错误：{str(e)}")
+
+
+def save_dict_to_html_txt(dict_html, txt_file_path):
+    try:
+        # 打开文件用于写入，使用UTF-8编码
+        with open(txt_file_path, "w", encoding="utf-8") as file:
+            # 遍历字典中的所有键值对
+            for filename, html_content in dict_html.items():
+                # 写入格式：文件名 + 制表符 + HTML内容 + 换行符
+                file.write(f"{filename}\t{html_content}\n")
+
+        print(f"成功写入到预标注文件: {txt_file_path}")
+        return True
+
+    except Exception as e:
+        print(f"写入预标注文件时发生错误: {str(e)}")
+        return False

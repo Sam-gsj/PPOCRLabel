@@ -129,6 +129,7 @@ from libs.hashableQListWidgetItem import HashableQListWidgetItem
 from libs.editinlist import EditInList
 from libs.unique_label_qlist_widget import UniqueLabelQListWidget
 from libs.keyDialog import KeyDialog
+from tablepyxl import tablepyxl
 
 import logging
 
@@ -163,6 +164,10 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(__appname__)
         self.setWindowState(Qt.WindowMaximized)  # set window max
         self.activateWindow()  # PPOCRLabel goes to the front when activate
+        # gsj person use
+        self.dict_html = {}
+        self.dict_excel = {}
+        self.dict_export = {}
 
         # Load setting in the main thread
         self.settings = Settings()
@@ -348,12 +353,19 @@ class MainWindow(QMainWindow):
         self.DelButton.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.ResortButton = QToolButton()
         self.ResortButton.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.ImportButton = QToolButton()
+        self.ImportButton.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.ExportButton = QToolButton()
+        self.ExportButton.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
 
         leftTopToolBox = QGridLayout()
         leftTopToolBox.addWidget(self.newButton, 0, 0, 1, 1)
         leftTopToolBox.addWidget(self.createpolyButton, 0, 1, 1, 1)
         leftTopToolBox.addWidget(self.reRecogButton, 1, 0, 1, 1)
         leftTopToolBox.addWidget(self.tableRecButton, 1, 1, 1, 1)
+        leftTopToolBox.addWidget(self.tableRecButton, 1, 1, 1, 1)
+        leftTopToolBox.addWidget(self.ImportButton, 0, 2, 1, 1)
+        leftTopToolBox.addWidget(self.ExportButton, 1, 2, 1, 1)
 
         leftTopToolBoxContainer = QWidget()
         leftTopToolBoxContainer.setLayout(leftTopToolBox)
@@ -905,6 +917,22 @@ class MainWindow(QMainWindow):
             get_str("resortpositiondetail"),
             enabled=True,
         )
+        importhtml = action(
+            get_str("importhtml"),
+            self.importhtml,
+            "Ctrl+I",
+            "importhtml",
+            get_str("importhtmldetail"),
+            enabled=True,
+        )
+        exporthtml = action(
+            get_str("exporthtml"),
+            self.exporthtml,
+            "Ctrl+E",
+            "exporthtml",
+            get_str("exporthtmldetail"),
+            enabled=True,
+        )
 
         self.editButton.setDefaultAction(edit)
         self.newButton.setDefaultAction(create)
@@ -915,6 +943,8 @@ class MainWindow(QMainWindow):
         self.reRecogButton.setDefaultAction(reRec)
         self.tableRecButton.setDefaultAction(tableRec)
         self.ResortButton.setDefaultAction(resort)
+        self.ImportButton.setDefaultAction(importhtml)
+        self.ExportButton.setDefaultAction(exporthtml)
         # self.preButton.setDefaultAction(openPrevImg)
         # self.nextButton.setDefaultAction(openNextImg)
 
@@ -1102,6 +1132,12 @@ class MainWindow(QMainWindow):
         self.displayIndexOption.setChecked(settings.get(SETTING_PAINT_INDEX, False))
         self.autoSaveOption.triggered.connect(self.autoSaveFunc)
 
+        self.autoImportOption = QAction(get_str("autoimporthtml"), self)
+        self.autoImportOption.setCheckable(True)
+
+        self.autoExportOption = QAction(get_str("autoexporthtml"), self)
+        self.autoExportOption.setCheckable(True)
+
         self.autoReRecognitionOption = QAction(get_str("autoReRecognition"), self)
         self.autoReRecognitionOption.setCheckable(True)
         self.autoReRecognitionOption.setChecked(
@@ -1132,6 +1168,8 @@ class MainWindow(QMainWindow):
                 self.autoSaveOption,
                 self.autoReRecognitionOption,
                 self.autoSaveUnsavedChangesOption,
+                self.autoImportOption,
+                self.autoExportOption,
                 None,
                 resetAll,
                 deleteImg,
@@ -1577,6 +1615,8 @@ class MainWindow(QMainWindow):
             self.mImgList5 = self.indexTo5Files(self.currIndex)
             # self.additems5(None)
             self.loadFile(filename)
+        if self.autoImportOption.isChecked():
+            self.importhtml()
 
     def iconitemDoubleClicked(self, item=None):
         self.currIndex = self.mImgList.index(os.path.join(item.toolTip()))
@@ -1585,6 +1625,8 @@ class MainWindow(QMainWindow):
             self.mImgList5 = self.indexTo5Files(self.currIndex)
             # self.additems5(None)
             self.loadFile(filename)
+        if self.autoImportOption.isChecked():
+            self.importhtml()
 
     def CanvasSizeChange(self):
         if len(self.mImgList) > 0 and self.imageSlider.hasFocus():
@@ -2533,10 +2575,13 @@ class MainWindow(QMainWindow):
         currIndex = self.mImgList.index(self.filePath)
         self.mImgList5 = self.mImgList[:5]
         if currIndex - 1 >= 0:
+            self.currIndex = self.currIndex - 1
             filename = self.mImgList[currIndex - 1]
             self.mImgList5 = self.indexTo5Files(currIndex - 1)
             if filename:
                 self.loadFile(filename)
+        if self.autoImportOption.isChecked():
+            self.importhtml()
 
     def openNextImg(self, _value=False, imgListCurrIndex=None):
         if not self.mayContinue():
@@ -2556,6 +2601,7 @@ class MainWindow(QMainWindow):
                 currIndex = imgListCurrIndex - 1
 
             if currIndex + 1 < len(self.mImgList):
+                self.currIndex = self.currIndex + 1
                 filename = self.mImgList[currIndex + 1]
                 self.mImgList5 = self.indexTo5Files(currIndex + 1)
             else:
@@ -2564,6 +2610,8 @@ class MainWindow(QMainWindow):
         if filename:
             logger.debug("file name in openNext is %s", filename)
             self.loadFile(filename)
+        if self.autoImportOption.isChecked():
+            self.importhtml()
 
     def updateFileListIcon(self, filename):
         pass
@@ -3738,6 +3786,34 @@ class MainWindow(QMainWindow):
             "Information",
             "resort success!",
         )
+
+    def importhtml(self):
+        if not self.dict_html:
+            parent_dir = os.path.dirname(self.lastOpenDir)
+            self.htmlfile_path = os.path.join(parent_dir, "val_html.txt")
+            tablepyxl.convert_html_txt_to_dict(self.htmlfile_path, self.dict_html)
+            excel_dir = os.path.join(parent_dir, "output_excel")
+            os.makedirs(excel_dir, exist_ok=True)
+            for key, value in self.dict_html.items():
+                excel_name = key.rsplit(".", 1)[0] + ".xlsx"
+                excel_path = os.path.join(excel_dir, excel_name)
+                tablepyxl.document_to_xl(value, excel_path)
+                self.dict_excel[key] = excel_path
+        filePath = self.mImgList[self.currIndex]
+        filePath_base = os.path.basename(filePath)
+
+        open_excel_path = self.dict_excel[filePath_base]
+
+        self.dict_export[filePath_base] = open_excel_path
+
+        os.system("open " + os.path.normpath(open_excel_path))
+
+    def exporthtml(self):
+        for key, value in self.dict_export.items():
+            html_content = tablepyxl.xl_to_html(value)
+            self.dict_html[key] = html_content
+        self.dict_export = {}
+        tablepyxl.save_dict_to_html_txt(self.dict_html, self.htmlfile_path)
 
 
 def inverted(color):
