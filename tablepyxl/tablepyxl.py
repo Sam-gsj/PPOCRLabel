@@ -140,14 +140,54 @@ def xl_to_html(excel_file):
     wb = load_workbook(excel_file)
     sheet_names = wb.sheetnames
     html_content = "<html><body>"
+
     for sheet_name in sheet_names:
         sheet = wb[sheet_name]
         html_content += f"<h2>{sheet_name}</h2>"
         html_content += "<table border='1'>"
-        for row in sheet.iter_rows(values_only=True):
+
+        # 获取合并单元格信息
+        merged_cells = sheet.merged_cells.ranges
+
+        # 创建一个字典来存储合并单元格的范围
+        merged_cell_map = {}
+        for merged_cell in merged_cells:
+            for row in range(merged_cell.min_row, merged_cell.max_row + 1):
+                for col in range(merged_cell.min_col, merged_cell.max_col + 1):
+                    merged_cell_map[(row, col)] = {
+                        "range": merged_cell,
+                        "main_cell": (merged_cell.min_row, merged_cell.min_col),
+                    }
+
+        # 遍历每一行
+        for row_idx, row in enumerate(sheet.iter_rows(values_only=True), 1):
             html_content += "<tr>"
-            for cell in row:
-                html_content += f"<td>{cell if cell is not None else ''}</td>"
+
+            # 遍历每一列
+            for col_idx, cell_value in enumerate(row, 1):
+                current_pos = (row_idx, col_idx)
+
+                # 检查当前单元格是否在合并单元格范围内
+                if current_pos in merged_cell_map:
+                    merge_info = merged_cell_map[current_pos]
+                    merge_range = merge_info["range"]
+
+                    # 只有主单元格（左上角单元格）需要输出
+                    if current_pos == merge_info["main_cell"]:
+                        rowspan = merge_range.max_row - merge_range.min_row + 1
+                        colspan = merge_range.max_col - merge_range.min_col + 1
+                        html_content += f"<td rowspan='{rowspan}' colspan='{colspan}'>"
+                        html_content += (
+                            f"{cell_value if cell_value is not None else ''}"
+                        )
+                        html_content += "</td>"
+                else:
+                    # 如果不是合并单元格的一部分，正常输出
+                    if current_pos not in merged_cell_map:
+                        html_content += (
+                            f"<td>{cell_value if cell_value is not None else ''}</td>"
+                        )
+
             html_content += "</tr>"
 
         html_content += "</table><br>"

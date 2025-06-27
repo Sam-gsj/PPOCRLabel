@@ -3805,7 +3805,6 @@ class MainWindow(QMainWindow):
         open_excel_path = self.dict_excel[filePath_base]
 
         self.dict_export[filePath_base] = open_excel_path
-
         os.system("open " + os.path.normpath(open_excel_path))
 
     def exporthtml(self):
