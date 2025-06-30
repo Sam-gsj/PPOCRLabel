@@ -1138,6 +1138,9 @@ class MainWindow(QMainWindow):
         self.autoExportOption = QAction(get_str("autoexporthtml"), self)
         self.autoExportOption.setCheckable(True)
 
+        self.autoCheck = QAction(get_str("autocheck"), self)
+        self.autoCheck.setCheckable(True)
+
         self.autoReRecognitionOption = QAction(get_str("autoReRecognition"), self)
         self.autoReRecognitionOption.setCheckable(True)
         self.autoReRecognitionOption.setChecked(
@@ -1170,6 +1173,7 @@ class MainWindow(QMainWindow):
                 self.autoSaveUnsavedChangesOption,
                 self.autoImportOption,
                 self.autoExportOption,
+                self.autoCheck,
                 None,
                 resetAll,
                 deleteImg,
@@ -3797,7 +3801,7 @@ class MainWindow(QMainWindow):
             for key, value in self.dict_html.items():
                 excel_name = key.rsplit(".", 1)[0] + ".xlsx"
                 excel_path = os.path.join(excel_dir, excel_name)
-                tablepyxl.document_to_xl(value, excel_path)
+                tablepyxl.html_table_to_excel_complex(value, excel_path)
                 self.dict_excel[key] = excel_path
         filePath = self.mImgList[self.currIndex]
         filePath_base = os.path.basename(filePath)
@@ -3811,6 +3815,13 @@ class MainWindow(QMainWindow):
         for key, value in self.dict_export.items():
             html_content = tablepyxl.xl_to_html(value)
             self.dict_html[key] = html_content
+            if self.autoCheck.isChecked():
+                parent_dir = os.path.dirname(self.lastOpenDir)
+                excel_dir = os.path.join(parent_dir, "check_excel")
+                excel_name = key.rsplit(".", 1)[0] + ".xlsx"
+                excel_path = os.path.join(excel_dir, excel_name)
+                tablepyxl.html_table_to_excel_complex(html_content, excel_path)
+                os.system("open " + os.path.normpath(excel_path))
         self.dict_export = {}
         tablepyxl.save_dict_to_html_txt(self.dict_html, self.htmlfile_path)
 
