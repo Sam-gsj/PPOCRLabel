@@ -197,13 +197,15 @@ def xl_to_html(excel_file):
 
 
 def convert_html_txt_to_dict(txt_file_path, dict_html):
+    import re
+
     try:
         with open(txt_file_path, "r", encoding="utf-8") as file:
             for line in file:
                 line = line.strip()
                 if not line:
                     continue
-                parts = line.split("\t", 1)
+                parts = re.split(r"\s+", line, 1)
                 if len(parts) == 2:
                     filename = parts[0]
                     html_content = parts[1]
