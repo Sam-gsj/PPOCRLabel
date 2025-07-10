@@ -9,6 +9,7 @@ import openpyxl
 from bs4 import BeautifulSoup
 import os
 from openpyxl.utils.exceptions import IllegalCharacterError
+from openpyxl.cell.rich_text import CellRichText
 
 
 def string_to_int(s):
@@ -136,20 +137,17 @@ def insert_table(table, worksheet, column, row):
 
 def xl_to_html(excel_file):
     try:
-        wb = load_workbook(excel_file)
+        wb = load_workbook(excel_file, rich_text=True)
         sheet_names = wb.sheetnames
         html_content = "<html><body>"
 
         for sheet_name in sheet_names:
             try:
                 sheet = wb[sheet_name]
-                html_content += f"<h2>{sheet_name}</h2>"
-                html_content += "<table border='1'>"
+                html_content += f"<h2>{sheet_name}</h2><table border='1'>"
 
-                # 获取合并单元格信息
+                # 合并单元格预处理
                 merged_cells = sheet.merged_cells.ranges
-
-                # 创建一个字典来存储合并单元格的范围
                 merged_cell_map = {}
                 for merged_cell in merged_cells:
                     for row in range(merged_cell.min_row, merged_cell.max_row + 1):
@@ -159,65 +157,64 @@ def xl_to_html(excel_file):
                                 "main_cell": (merged_cell.min_row, merged_cell.min_col),
                             }
 
-                # 定义处理单元格值的函数
-                def process_cell_value(value):
-                    if value is None:
+                # 处理单元格函数
+                def process_cell(cell):
+                    if cell.value is None:
                         return ""
-                    # 将换行符转换为<br>标签
-                    str_value = str(value)
-                    # 处理Windows风格的换行符(\r\n)和Unix风格的换行符(\n)
-                    str_value = str_value.replace("\r\n", "<br>")
-                    str_value = str_value.replace("\n", "<br>")
-                    str_value = str_value.replace("\r", "<br>")
-                    return str_value
+                    # 富文本处理
+                    if isinstance(cell.value, CellRichText):
+                        html_parts = []
+                        for text_block in cell.value:
+                            text = str(text_block)
+                            font = getattr(text_block, "font", None)
+                            if font and font.vertAlign == "subscript":
+                                html_parts.append(f"<sub>{text}</sub>")
+                            else:
+                                html_parts.append(text)
+                        processed = "".join(html_parts)
+                    else:
+                        processed = str(cell.value)
+                        # 全局字体下标判断
+                        if cell.font.vertAlign == "subscript":
+                            processed = f"<sub>{processed}</sub>"
+                    # 处理换行符
+                    return processed.replace("\r\n", "<br>").replace("\n", "<br>")
 
-                # 遍历每一行
-                for row_idx, row in enumerate(sheet.iter_rows(values_only=True), 1):
+                # 遍历行和列（关键修改点）
+                for row_idx, row in enumerate(sheet.iter_rows(), 1):  # 此处获取单元格对象
                     html_content += "<tr>"
-
-                    # 遍历每一列
-                    for col_idx, cell_value in enumerate(row, 1):
+                    for col_idx, cell in enumerate(row, 1):
                         current_pos = (row_idx, col_idx)
-
-                        # 检查当前单元格是否在合并单元格范围内
                         if current_pos in merged_cell_map:
                             merge_info = merged_cell_map[current_pos]
-
-                            # 只有主单元格（左上角单元格）需要输出
+                            # 仅主单元格输出
                             if current_pos == merge_info["main_cell"]:
-                                merge_range = merge_info["range"]
-                                rowspan = merge_range.max_row - merge_range.min_row + 1
-                                colspan = merge_range.max_col - merge_range.min_col + 1
-                                html_content += (
-                                    f"<td rowspan='{rowspan}' colspan='{colspan}'>"
+                                rowspan = (
+                                    merge_info["range"].max_row
+                                    - merge_info["range"].min_row
+                                    + 1
                                 )
-                                html_content += process_cell_value(cell_value)
-                                html_content += "</td>"
-                            # 否则跳过（被合并的单元格不需要输出）
+                                colspan = (
+                                    merge_info["range"].max_col
+                                    - merge_info["range"].min_col
+                                    + 1
+                                )
+                                html_content += f"<td rowspan='{rowspan}' colspan='{colspan}'>{process_cell(cell)}</td>"
                         else:
-                            # 普通单元格
-                            html_content += f"<td>{process_cell_value(cell_value)}</td>"
-
+                            html_content += f"<td>{process_cell(cell)}</td>"
                     html_content += "</tr>"
 
                 html_content += "</table><br>"
 
             except Exception as sheet_error:
-                print(f"Error processing sheet {sheet_name}: {sheet_error}")
-                html_content += f"<p>Error processing sheet {sheet_name}</p>"
+                print(f"处理工作表错误: {sheet_error}")
+                html_content += f"<p>表格 {sheet_name} 转换失败</p>"
 
         html_content += "</body></html>"
         return html_content
 
-    except FileNotFoundError:
-        print(f"Error: Excel file '{excel_file}' not found.")
-        return "<html><body><p>Excel file not found.</p></body></html>"
-    except PermissionError:
-        print(f"Error: Permission denied when accessing '{excel_file}'.")
-        return "<html><body><p>Permission denied accessing the file.</p></body></html>"
     except Exception as e:
-        print(f"Unexpected error in xl_to_html: {e}")
-        return f"<html><body><p>An unexpected error occurred: {e}</p></body></html>"
+        return f"<html><body><p>错误: {str(e)}</p></body></html>"
 
 
 def html_table_to_excel_complex(
