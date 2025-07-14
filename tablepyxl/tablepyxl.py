@@ -379,8 +379,10 @@ def save_dict_to_html_txt(dict_html, txt_file_path):
             for filename, html_content in dict_html.items():
                 # 写入格式：文件名 + 制表符 + HTML内容 + 换行符
                 file.write(f"{filename}\t{html_content}\n")
-
-        print(f"成功写入到预标注文件: {txt_file_path}")
+        if os.path.basename(txt_file_path) == "val_html.txt":
+            print(f"成功写入到预标注文件: {txt_file_path}")
+        else:
+            print(f"成功写入到备份文件: {txt_file_path}")
         return True
 
     except Exception as e:

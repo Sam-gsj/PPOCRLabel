@@ -132,6 +132,7 @@ from libs.keyDialog import KeyDialog
 from tablepyxl import tablepyxl
 
 import logging
+from datetime import datetime
 
 logger = logging.getLogger("PPOCRLabel")
 
@@ -3812,6 +3813,16 @@ class MainWindow(QMainWindow):
         os.system("open " + os.path.normpath(open_excel_path))
 
     def exporthtml(self):
+        parent_directory = os.path.dirname(self.htmlfile_path)
+        new_directory = os.path.join(parent_directory, "backup")
+        current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+        file_name_with_extension = os.path.basename(self.htmlfile_path)
+        file_name, file_extension = os.path.splitext(file_name_with_extension)
+        new_file_name = f"{file_name}_{current_time}{file_extension}"
+        new_htmlfile = os.path.join(new_directory, new_file_name)
+        if not os.path.exists(new_directory):
+            os.makedirs(new_directory)
+        tablepyxl.save_dict_to_html_txt(self.dict_html, new_htmlfile)
         for key, value in self.dict_export.items():
             html_content = tablepyxl.xl_to_html(value)
             self.dict_html[key] = html_content
